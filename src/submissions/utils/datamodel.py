@@ -3,6 +3,8 @@ from typing import Dict, List
 from json import JSONEncoder
 import jsonpickle
 
+
+
 Time = int
 Symbol = str
 Product = str
@@ -10,15 +12,13 @@ Position = int
 UserId = str
 ObservationValue = int
 
-
 class Listing:
 
     def __init__(self, symbol: Symbol, product: Product, denomination: Product):
         self.symbol = symbol
         self.product = product
         self.denomination = denomination
-        
-                 
+               
 class ConversionObservation:
 
     def __init__(self, bidPrice: float, askPrice: float, transportFees: float, exportTariff: float, importTariff: float, sugarPrice: float, sunlightIndex: float):
@@ -30,7 +30,6 @@ class ConversionObservation:
         self.sugarPrice = sugarPrice
         self.sunlightIndex = sunlightIndex
         
-
 class Observation:
 
     def __init__(self, plainValueObservations: Dict[Product, ObservationValue], conversionObservations: Dict[Product, ConversionObservation]) -> None:
@@ -40,7 +39,6 @@ class Observation:
     def __str__(self) -> str:
         return "(plainValueObservations: " + jsonpickle.encode(self.plainValueObservations) + ", conversionObservations: " + jsonpickle.encode(self.conversionObservations) + ")"
      
-
 class Order:
 
     def __init__(self, symbol: Symbol, price: int, quantity: int) -> None:
@@ -54,13 +52,11 @@ class Order:
     def __repr__(self) -> str:
         return "(" + self.symbol + ", " + str(self.price) + ", " + str(self.quantity) + ")"
     
-
 class OrderDepth:
 
     def __init__(self):
         self.buy_orders: Dict[int, int] = {}
         self.sell_orders: Dict[int, int] = {}
-
 
 class Trade:
 
@@ -77,7 +73,6 @@ class Trade:
 
     def __repr__(self) -> str:
         return "(" + self.symbol + ", " + self.buyer + " << " + self.seller + ", " + str(self.price) + ", " + str(self.quantity) + ", " + str(self.timestamp) + ")"
-
 
 class TradingState(object):
 
@@ -102,7 +97,6 @@ class TradingState(object):
     def toJSON(self):
         return json.dumps(self, default=lambda o: o.__dict__, sort_keys=True)
 
-    
 class ProsperityEncoder(JSONEncoder):
 
         def default(self, o):
