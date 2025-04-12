@@ -10,7 +10,7 @@ from typing import List, Dict
 # -----------------------------
 class MarketMakingStrategy:
 
-    def __init__(self, symbol: str, limit: int):
+    def _init_(self, symbol: str, limit: int):
         self.symbol = symbol          # Trading symbol (e.g. "RAINFOREST_RESIN" or "KELP")
         self.limit = limit            # Position limit for the product (50 in this round)
 
@@ -171,6 +171,50 @@ class KelpStrategy(MarketMakingStrategy):
         
         return fair_value
 
+class SquidInkStrategy(MarketMakingStrategy):
+
+    def __init__(self, symbol: str, limit: int):
+        super().__init__(symbol, limit)
+        self.mid_price_window = deque(maxlen=10)
+
+    def get_true_value(self, state: TradingState) -> int:
+        """
+        For Squid Ink, we compute a dynamic fair value based on short-term mean reversion.
+        - Calculate the current mid price from best bid and ask.
+        - Maintain a sliding window of recent mid prices.
+        - Return the average of the window as the fair value.
+        """
+        order_depth: OrderDepth = state.order_depths[self.symbol]
+        
+        best_bid = max(order_depth.buy_orders.keys()) if order_depth.buy_orders else None
+        best_ask = min(order_depth.sell_orders.keys()) if order_depth.sell_orders else None
+        
+        if best_bid is None or best_ask is None:
+            return 100  # fallback value
+
+        mid_price = (best_bid + best_ask) / 2
+        self.mid_price_window.append(mid_price)
+
+        if len(self.mid_price_window) < self.mid_price_window.maxlen:
+            return round(mid_price)
+
+        average_mid_price = sum(self.mid_price_window) / len(self.mid_price_window)
+        
+        return round(average_mid_price)
+
+    def save_state(self) -> list:
+        """
+        Persist both position window and mid-price window.
+        """
+        return {
+            "position_window": list(self.position_window),
+            "mid_price_window": list(self.mid_price_window),
+        }
+
+    def load_state(self, data: dict) -> None:
+        self.position_window = deque(data.get("position_window", []), maxlen=self.window_size)
+        self.mid_price_window = deque(data.get("mid_price_window", []), maxlen=10)
+
 # -----------------------------
 # Trader Class
 # -----------------------------
@@ -181,12 +225,14 @@ class Trader:
         limits: Dict[str, int] = {
             "RAINFOREST_RESIN": 50,
             "KELP": 50,
+            "SQUID_INK": 50,
         }
         
         # Instantiating specific strategies for each product.
         self.strategies: Dict[str, MarketMakingStrategy] = {
             "RAINFOREST_RESIN": RainforestResinStrategy("RAINFOREST_RESIN", limits["RAINFOREST_RESIN"]),
             "KELP": KelpStrategy("KELP", limits["KELP"]),
+            "SQUID_INK": SquidInkStrategy("SQUID_INK", limits["SQUID_INK"]),
         }
 
     def run(self, state: TradingState) -> tuple[Dict[str, List[Order]], int, str]:
