@@ -17,7 +17,7 @@ class MarketMakingStrategy:
         
         # Adjusted window_size from 10 -> 5 for faster liquidation triggers
         self.window_size = 5
-        self.position_window = deque()
+        self.position_window = deque(maxlen=self.window_size)
 
     def get_true_value(self, state: TradingState) -> int:
         raise NotImplementedError("Please implement the get_true_value method for your strategy.")
@@ -37,8 +37,6 @@ class MarketMakingStrategy:
 
         # Liquidation window: track if we hit the limit
         self.position_window.append(abs(position) >= self.limit)
-        if len(self.position_window) > self.window_size:
-            self.position_window.popleft()
 
         # Soft/hard liquidation conditions
         soft_liquidate = (
@@ -64,15 +62,13 @@ class MarketMakingStrategy:
 
         # 1) Process SELL orders (buying from the market)
         for price, volume in sell_orders:
-       
             if to_buy > 0 and price <= max_buy_price:
-                quantity = min(to_buy, -volume)  # volume is negative for sell side
+                quantity = min(to_buy, -volume)
                 orders.append(Order(self.symbol, price, quantity))
                 to_buy -= quantity
 
         # 2) Adjust buy volume for liquidation
         if to_buy > 0:
-        
             if hard_liquidate:
                 quantity = to_buy // 2
                 orders.append(Order(self.symbol, true_value, quantity))
@@ -91,7 +87,6 @@ class MarketMakingStrategy:
 
         # 3) Process BUY orders (selling to the market)
         for price, volume in buy_orders:
-        
             if to_sell > 0 and price >= min_sell_price:
                 quantity = min(to_sell, volume)
                 orders.append(Order(self.symbol, price, -quantity))
@@ -99,7 +94,6 @@ class MarketMakingStrategy:
 
         # 4) Adjust sell volume for liquidation
         if to_sell > 0:
-        
             if hard_liquidate:
                 quantity = to_sell // 2
                 orders.append(Order(self.symbol, true_value, -quantity))
@@ -118,7 +112,6 @@ class MarketMakingStrategy:
         # --- Begin Added Voucher Multiplier in act() ---
         peak_hour = 12
         if state.timestamp // 3600 == peak_hour:
-         
             for order in orders:
                 order.quantity = int(order.quantity * 1.2)
         # --- End Added Voucher Multiplier in act() ---
@@ -318,7 +311,7 @@ class RainforestResinStrategy(MarketMakingStrategy):
         if state.timestamp // 3600 == peak_hour:
    
             for order in orders:
-                order.quantity = int(order.quantity * 1.2)
+                order.quantity = int(order.quantity * 1.25)
    
         price_impact = -0.2013437715581671
    
@@ -329,14 +322,13 @@ class RainforestResinStrategy(MarketMakingStrategy):
    
         return orders
 
-
 class KelpStrategy(MarketMakingStrategy):
    
     def get_true_value(self, state: TradingState) -> int:
         order_depth: OrderDepth = state.order_depths[self.symbol]
         
         if not order_depth.buy_orders or not order_depth.sell_orders:
-            return 50
+            return 2044
        
         buy_orders = sorted(order_depth.buy_orders.items(), key=lambda tup: tup[1], reverse=True)
         sell_orders = sorted(order_depth.sell_orders.items(), key=lambda tup: tup[1])
@@ -350,14 +342,14 @@ class KelpStrategy(MarketMakingStrategy):
         orders = super().act(state)
         
         # Using a volatility threshold in line with KELP's low variability.
-        volatility = 5  # adjusted from 12539.86
+        volatility = 4  # adjusted from 12539.86
         
         if volatility > 0:
         
             for order in orders:
                 order.quantity = max(1, order.quantity // 2)
         
-        mean_reversion_factor = 10  # adjusted from 14485.32
+        mean_reversion_factor = 15  # adjusted from 14485.32
         
         if mean_reversion_factor > 0:
         
@@ -370,7 +362,7 @@ class SquidInkStrategy(MarketMakingStrategy):
     
     def __init__(self, symbol: str, limit: int):
         super().__init__(symbol, limit)
-        self.mid_price_window = deque(maxlen=5)  # kept at 5 for faster adaptation
+        self.mid_price_window = deque(maxlen=4)  # kept at 5 for faster adaptation
     
     def get_true_value(self, state: TradingState) -> int:
         order_depth: OrderDepth = state.order_depths[self.symbol]
@@ -378,7 +370,7 @@ class SquidInkStrategy(MarketMakingStrategy):
         best_ask = min(order_depth.sell_orders.keys()) if order_depth.sell_orders else None
       
         if best_bid is None or best_ask is None:
-            return 1907  # adjusted fallback for SQUID_INK
+            return 1827  # adjusted fallback for SQUID_INK
       
         mid_price = (best_bid + best_ask) / 2
         self.mid_price_window.append(mid_price)
@@ -446,7 +438,7 @@ class JamsStrategy(MarketMakingStrategy):
         if observation:
             return max(50, int(observation.sugarPrice))
     
-        return 6600
+        return 6480
 
 class DjembesStrategy(MarketMakingStrategy):
     
@@ -457,7 +449,7 @@ class DjembesStrategy(MarketMakingStrategy):
         if observation:
             return int(observation.transportFees + observation.exportTariff + observation.importTariff)
        
-        return 13462
+        return 13400
     
     def act(self, state: TradingState) -> List[Order]:
         orders = super().act(state)
@@ -468,29 +460,29 @@ class DjembesStrategy(MarketMakingStrategy):
             for order in orders:
     
                 if order.price > 13500:
-                    order.quantity = int(order.quantity * 0.8)
+                    order.quantity = int(order.quantity * 0.7)
     
         return orders
 
 class PicnicBasket1Strategy(MarketMakingStrategy):
-    
+
     def get_true_value(self, state: TradingState) -> int:
-        observation = state.observations.conversionObservations.get(self.symbol)
-    
-        if observation:
-            return int(observation.sunlightIndex * 1.5)
-    
-        return 59135  # adjusted default based on stats
-   
+        obs = state.observations.conversionObservations.get(self.symbol)
+
+        if obs:
+            return int(obs.sunlightIndex * 1.6)
+
+        return 58000
+
 class PicnicBasket2Strategy(MarketMakingStrategy):
-    
+
     def get_true_value(self, state: TradingState) -> int:
-        observation = state.observations.conversionObservations.get(self.symbol)
-    
-        if observation:
-            return int(observation.sunlightIndex * 2)
-    
-        return 30415  # adjusted default based on stats
+        obs = state.observations.conversionObservations.get(self.symbol)
+
+        if obs:
+            return int(obs.sunlightIndex * 2.0)
+
+        return 30000
 
 class VolcanicRockStrategy(MarketMakingStrategy):
     
@@ -502,11 +494,11 @@ class VolcanicRockStrategy(MarketMakingStrategy):
         market = state.order_depths.get(self.symbol)
     
         if market:
-            best_ask = min(market.sell_orders.keys(), default=10454)
-            best_bid = max(market.buy_orders.keys(), default=10454)
+            best_ask = min(market.sell_orders.keys(), default=10091)
+            best_bid = max(market.buy_orders.keys(), default=10091)
             mid_price = (best_ask + best_bid) / 2
         else:
-            mid_price = 10454  # adjusted fallback
+            mid_price = 10091  # adjusted fallback
     
         self.price_history.append(mid_price)
     
@@ -529,13 +521,13 @@ class VoucherStrategy(MarketMakingStrategy):
         self.price_history = []
         self.strike_price = strike_price
         
-        # Setting fallback price based on the product symbol:
+        # Updated fallback prices based on mean mids over 3 days
         fallback_prices = {
-            "VOLCANIC_ROCK_VOUCHER_10000": 458,
-            "VOLCANIC_ROCK_VOUCHER_10250": 230,
-            "VOLCANIC_ROCK_VOUCHER_10500": 73,
-            "VOLCANIC_ROCK_VOUCHER_9500": 954,
-            "VOLCANIC_ROCK_VOUCHER_9750": 705,
+            "VOLCANIC_ROCK_VOUCHER_10000": 172,    # Day 3’s value
+            "VOLCANIC_ROCK_VOUCHER_10250": 41,
+            "VOLCANIC_ROCK_VOUCHER_10500": 2.5,
+            "VOLCANIC_ROCK_VOUCHER_9500": 655,
+            "VOLCANIC_ROCK_VOUCHER_9750": 420,
         }
         self.fallback_price = fallback_prices.get(self.symbol, 400)
 
@@ -555,6 +547,43 @@ class VoucherStrategy(MarketMakingStrategy):
 
         return int(mid_price)
 
+class MagnificentMacaronsStrategy(MarketMakingStrategy):
+    CSI = 65  # Critical Sunlight Index threshold
+
+    def __init__(self, symbol: str, limit: int):
+        super().__init__(symbol, limit)
+        self.sunlight_history = deque(maxlen=10)
+
+    def get_true_value(self, state: TradingState) -> int:
+        obs = state.observations.conversionObservations.get(self.symbol)
+        # Fallback defaults
+        sunlight = obs.sunlightIndex if obs and hasattr(obs, 'sunlightIndex') else MagnificentMacaronsStrategy.CSI
+        sugar = obs.sugarPrice if obs and hasattr(obs, 'sugarPrice') else 100
+        shipping = obs.transportFees if obs and hasattr(obs, 'transportFees') else 50
+        tariffs = 0
+        if obs and hasattr(obs, 'exportTariff') and hasattr(obs, 'importTariff'):
+            tariffs = obs.exportTariff + obs.importTariff
+
+        # Track recent sunlight levels
+        self.sunlight_history.append(sunlight)
+        sustained_low = (
+            len(self.sunlight_history) == self.sunlight_history.maxlen
+            and all(s < MagnificentMacaronsStrategy.CSI for s in self.sunlight_history)
+        )
+
+        # Base value calculation
+        base_value = sugar + shipping + tariffs
+
+        if sustained_low:
+            # Panic premium when sunlight remains low
+            premium = (MagnificentMacaronsStrategy.CSI - np.mean(self.sunlight_history)) / MagnificentMacaronsStrategy.CSI
+            true_val = base_value * (1 + premium * 1.3)
+        else:
+            # Normal fair trading around base value
+            true_val = base_value
+
+        return int(true_val)
+    
 # -----------------------------
 # Trader Class
 # -----------------------------
@@ -575,7 +604,8 @@ class Trader:
             "VOLCANIC_ROCK_VOUCHER_9750": 200,
             "VOLCANIC_ROCK_VOUCHER_10000": 200,
             "VOLCANIC_ROCK_VOUCHER_10250": 200,
-            "VOLCANIC_ROCK_VOUCHER_10500": 200
+            "VOLCANIC_ROCK_VOUCHER_10500": 200,
+            "MAGNIFICENT_MACARONS": 75
         }
         self.strategies: Dict[str, MarketMakingStrategy] = {
             "RAINFOREST_RESIN": RainforestResinStrategy("RAINFOREST_RESIN", limits["RAINFOREST_RESIN"]),
@@ -592,23 +622,51 @@ class Trader:
             "VOLCANIC_ROCK_VOUCHER_10000": VoucherStrategy("VOLCANIC_ROCK_VOUCHER_10000", limits["VOLCANIC_ROCK_VOUCHER_10000"], 10000),
             "VOLCANIC_ROCK_VOUCHER_10250": VoucherStrategy("VOLCANIC_ROCK_VOUCHER_10250", limits["VOLCANIC_ROCK_VOUCHER_10250"], 10250),
             "VOLCANIC_ROCK_VOUCHER_10500": VoucherStrategy("VOLCANIC_ROCK_VOUCHER_10500", limits["VOLCANIC_ROCK_VOUCHER_10500"], 10500),
+            "MAGNIFICENT_MACARONS": MagnificentMacaronsStrategy("MAGNIFICENT_MACARONS", limits["MAGNIFICENT_MACARONS"]),
+        }
+        self.conversion_limits: Dict[str, int] = {
+            "MAGNIFICENT_MACARONS": 10
         }
     
     def run(self, state: TradingState) -> tuple[Dict[str, List[Order]], int, str]:
-        old_trader_data = json.loads(state.traderData) if state.traderData != "" else {}
-        new_trader_data = {}
+        # Loading previous state, including counterparty counts
+        old_data = json.loads(state.traderData) if state.traderData else {}
+        cp_counts = old_data.get('cp_counts', {})
+        new_data = {}
         orders: Dict[str, List[Order]] = {}
-        
+
+        # Updating counterparty counts from own trades
+        for symbol, trades in state.own_trades.items():
+            
+            for trade in trades:
+                cp = getattr(trade, 'counter_party', None)
+            
+                if cp:
+                    cp_counts.setdefault(symbol, {})
+                    cp_counts[symbol][cp] = cp_counts[symbol].get(cp, 0) + 1
+
+        # Generating orders per strategy and scale by counterparty diversity
         for symbol, strategy in self.strategies.items():
-        
-            if symbol in old_trader_data:
-                strategy.load_state(old_trader_data[symbol])
+            
+            if symbol in old_data:
+                strategy.load_state(old_data[symbol])
+            
             if symbol in state.order_depths:
-                orders[symbol] = strategy.act(state)
-        
-            new_trader_data[symbol] = strategy.save_state()
-        
-        trader_data = json.dumps(new_trader_data, separators=(",", ":"))
+                base_orders = strategy.act(state)
+                # Scale quantities by unique counterparty factor
+                unique_cps = len(cp_counts.get(symbol, {}))
+                factor = 1 + min(unique_cps / 10, 0.2)
+                
+                for order in base_orders:
+                    order.quantity = int(order.quantity * factor)
+                
+                orders[symbol] = base_orders
+            
+            new_data[symbol] = strategy.save_state()
+
+        # Persisting counterparty counts
+        new_data['cp_counts'] = cp_counts
+        trader_data = json.dumps(new_data, separators=(',', ':'))
         conversions = 0
         
         return orders, conversions, trader_data

@@ -1,0 +1,5 @@
+# Ignoring everything in the data folder
+/data/*
+
+# Ignoring everything in the logs folder
+/src/logs/* 
